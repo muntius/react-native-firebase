@@ -60,7 +60,7 @@ public class RNFirebasePackage implements ReactPackage {
    * @param reactContext
    * @return a list of view managers that should be registered with {@link UIManagerModule}
    */
-  @Override
+  // @Override
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     return Collections.emptyList();
   }
