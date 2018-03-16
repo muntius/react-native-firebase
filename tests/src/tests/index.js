@@ -1,36 +1,18 @@
 import { setSuiteStatus, setTestStatus } from '../actions/TestActions';
-import analytics from './analytics';
-import crash from './crash';
-import crashlytics from './crashlytics';
-import core from './core';
-import database from './database';
-import messaging from './messaging';
-import storage from './storage';
-import auth from './auth';
-import config from './config';
-import performance from './perf';
-import admob from './admob';
-import firestore from './firestore';
-import links from './links/index';
-
-window.getCoverage = function getCoverage() {
-  return JSON.stringify(global.__coverage__);
-};
+import analytics from './analytics/index';
+import crash from './crash/index';
+import database from './database/index';
+import messaging from './messaging/index';
+import storage from './storage/index';
+import auth from './auth/index';
 
 const testSuiteInstances = [
-  admob,
-  analytics,
-  auth,
-  config,
-  core,
-  crash,
-  crashlytics,
   database,
-  firestore,
+  auth,
+  analytics,
   messaging,
-  performance,
+  crash,
   storage,
-  links,
 ];
 
 /*
@@ -70,11 +52,13 @@ const testContexts = {};
  * @returns {{suites: {}, descriptions: {}}}
  */
 export function initialState() {
-  testSuiteInstances.forEach(testSuite => {
-    const { id, name, description, testDefinitions } = testSuite;
+  testSuiteInstances.forEach((testSuite) => {
+    const { id, name, description } = testSuite;
 
     // Add to test suite runners for later recall
     testSuiteRunners[testSuite.id] = testSuite;
+
+    const testDefinitions = testSuite.testDefinitions;
 
     // Add to test suites to place in the redux store
     testSuites[testSuite.id] = {
@@ -111,17 +95,13 @@ export function initialState() {
  * @param store
  */
 export function setupSuites(store) {
-  Object.values(testSuiteRunners).forEach(testSuite => {
+  Object.values(testSuiteRunners).forEach((testSuite) => {
     // eslint-disable-next-line no-param-reassign
-    testSuite.setStore(
-      store,
-      action => {
-        store.dispatch(setSuiteStatus(action));
-      },
-      action => {
-        store.dispatch(setTestStatus(action));
-      }
-    );
+    testSuite.setStore(store, (action) => {
+      store.dispatch(setSuiteStatus(action));
+    }, (action) => {
+      store.dispatch(setTestStatus(action));
+    });
   });
 }
 
@@ -143,10 +123,7 @@ export function runTest(testId) {
  * @param {IdLookup} options.pendingTestIds - map of ids of pending tests
  * @param {IdLookup} options.focusedTestIds - map of ids of focused tests
  */
-export function runTests(
-  testGroup,
-  options = { pendingTestIds: {}, focusedTestIds: {} }
-) {
+export function runTests(testGroup, options = { pendingTestIds: {}, focusedTestIds: {} }) {
   const areFocusedTests = Object.keys(options.focusedTestIds).length > 0;
 
   if (areFocusedTests) {
@@ -183,7 +160,7 @@ function runAllButTestsInLookup(testGroup, testLookup) {
     return memo;
   }, {});
 
-  Promise.each(Object.keys(testsToRunBySuiteId), testSuiteId => {
+  Promise.each(Object.keys(testsToRunBySuiteId), (testSuiteId) => {
     const testIds = testsToRunBySuiteId[testSuiteId];
     return runSuite(testSuiteId, testIds);
   });
@@ -200,7 +177,7 @@ function runOnlyTestsInLookup(testGroup, testLookup) {
 }
 
 function runTestsBySuiteId(suiteIdTests) {
-  Promise.each(Object.keys(suiteIdTests), testSuiteId => {
+  Promise.each(Object.keys(suiteIdTests), (testSuiteId) => {
     const testIds = suiteIdTests[testSuiteId];
 
     return runSuite(testSuiteId, testIds);

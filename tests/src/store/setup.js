@@ -1,7 +1,7 @@
 import { AsyncStorage } from 'react-native';
 import { applyMiddleware, createStore, compose } from 'redux';
 import thunk from 'redux-thunk';
-// import reduxLogger from 'redux-logger';
+import reduxLogger from 'redux-logger';
 import { persistStore, autoRehydrate } from 'redux-persist';
 
 import whitelist from './whitelist';
@@ -10,11 +10,11 @@ import reducers from '../reducers';
 function setup(done) {
   const isDev = global.isDebuggingInChrome || __DEV__;
 
-  /* const logger = reduxLogger({
-    predicate: () => false,
+  const logger = reduxLogger({
+    predicate: () => isDev,
     collapsed: true,
     duration: true,
-  }); */
+  });
 
   // AsyncStorage.clear();
 
@@ -24,15 +24,11 @@ function setup(done) {
   middlewares.push(applyMiddleware(...[thunk]));
 
   if (isDev) {
-    // middlewares.push(applyMiddleware(...[logger]));
-    middlewares.push(
-      // eslint-disable-next-line global-require
-      applyMiddleware(require('redux-immutable-state-invariant')())
-    );
+    middlewares.push(applyMiddleware(...[logger]));
+    middlewares.push(applyMiddleware(require('redux-immutable-state-invariant')()));
   }
 
-  const composeEnhancers =
-    window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
+  const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 
   const store = createStore(reducers, {}, composeEnhancers(...middlewares));
 

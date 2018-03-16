@@ -1,8 +1,5 @@
 package io.invertase.firebase;
 
-import android.app.ActivityManager;
-import android.content.Context;
-import android.support.annotation.Nullable;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -42,11 +39,11 @@ public class Utils {
   /**
    * send a JS event
    **/
-  public static void sendEvent(final ReactContext context, final String eventName, Object body) {
+  public static void sendEvent(final ReactContext context, final String eventName, final WritableMap params) {
     if (context != null) {
       context
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-        .emit(eventName, body);
+        .emit(eventName, params);
     } else {
       Log.d(TAG, "Missing context - cannot send event!");
     }
@@ -79,72 +76,22 @@ public class Utils {
   }
 
   /**
-   * @param dataSnapshot
-   * @param previousChildName
-   * @return
-   */
-  public static WritableMap snapshotToMap(DataSnapshot dataSnapshot, @Nullable String previousChildName) {
-    WritableMap result = Arguments.createMap();
-    WritableMap snapshot = Utils.snapshotToMap(dataSnapshot);
-
-    result.putMap("snapshot", snapshot);
-    result.putString("previousChildName", previousChildName);
-    return result;
-  }
-
-  /**
    *
-   * @param map
-   * @return
-   */
-  public static WritableMap readableMapToWritableMap(ReadableMap map) {
-    WritableMap writableMap = Arguments.createMap();
-
-    ReadableMapKeySetIterator iterator = map.keySetIterator();
-    while (iterator.hasNextKey()) {
-      String key = iterator.nextKey();
-      ReadableType type = map.getType(key);
-      switch (type) {
-        case Null:
-          writableMap.putNull(key);
-          break;
-        case Boolean:
-          writableMap.putBoolean(key, map.getBoolean(key));
-          break;
-        case Number:
-          writableMap.putDouble(key, map.getDouble(key));
-          break;
-        case String:
-          writableMap.putString(key, map.getString(key));
-          break;
-        case Map:
-          writableMap.putMap(key, readableMapToWritableMap(map.getMap(key)));
-          break;
-        case Array:
-          // TODO writableMap.putArray(key, readableArrayToWritableArray(map.getArray(key)));
-          break;
-        default:
-          throw new IllegalArgumentException("Could not convert object with key: " + key + ".");
-      }
-
-    }
-
-    return writableMap;
-  }
-
-  /**
+   * @param name
+   * @param refId
+   * @param listenerId
+   * @param path
    * @param dataSnapshot
    * @return
    */
-  public static WritableMap snapshotToMap(DataSnapshot dataSnapshot) {
+  public static WritableMap snapshotToMap(String name, int refId, Integer listenerId, String path, DataSnapshot dataSnapshot) {
     WritableMap snapshot = Arguments.createMap();
+    WritableMap eventMap = Arguments.createMap();
 
     snapshot.putString("key", dataSnapshot.getKey());
     snapshot.putBoolean("exists", dataSnapshot.exists());
     snapshot.putBoolean("hasChildren", dataSnapshot.hasChildren());
     snapshot.putDouble("childrenCount", dataSnapshot.getChildrenCount());
-    snapshot.putArray("childKeys", Utils.getChildKeys(dataSnapshot));
-    mapPutValue("priority", dataSnapshot.getPriority(), snapshot);
 
     if (!dataSnapshot.hasChildren()) {
       mapPutValue("value", dataSnapshot.getValue(), snapshot);
@@ -157,10 +104,52 @@ public class Utils {
       }
     }
 
+    snapshot.putArray("childKeys", Utils.getChildKeys(dataSnapshot));
+    mapPutValue("priority", dataSnapshot.getPriority(), snapshot);
+
+    eventMap.putInt("refId", refId);
+    if (listenerId != null) {
+      eventMap.putInt("listenerId", listenerId);
+    }
+    eventMap.putString("path", path);
+    eventMap.putMap("snapshot", snapshot);
+    eventMap.putString("eventName", name);
+
+    return eventMap;
+  }
+
+  /**
+   *
+   * @param dataSnapshot
+   * @return
+   */
+  public static WritableMap snapshotToMap(DataSnapshot dataSnapshot) {
+    WritableMap snapshot = Arguments.createMap();
+
+    snapshot.putString("key", dataSnapshot.getKey());
+    snapshot.putBoolean("exists", dataSnapshot.exists());
+    snapshot.putBoolean("hasChildren", dataSnapshot.hasChildren());
+    snapshot.putDouble("childrenCount", dataSnapshot.getChildrenCount());
+
+    if (!dataSnapshot.hasChildren()) {
+      mapPutValue("value", dataSnapshot.getValue(), snapshot);
+    } else {
+      Object value = Utils.castValue(dataSnapshot);
+      if (value instanceof WritableNativeArray) {
+        snapshot.putArray("value", (WritableArray) value);
+      } else {
+        snapshot.putMap("value", (WritableMap) value);
+      }
+    }
+
+    snapshot.putArray("childKeys", Utils.getChildKeys(dataSnapshot));
+    mapPutValue("priority", dataSnapshot.getPriority(), snapshot);
+
     return snapshot;
   }
 
   /**
+   *
    * @param snapshot
    * @param <Any>
    * @return
@@ -191,6 +180,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param mutableData
    * @param <Any>
    * @return
@@ -221,22 +211,16 @@ public class Utils {
   }
 
   /**
-   * Data should be treated as an array if:
-   * 1) All the keys are integers
-   * 2) More than half the keys between 0 and the maximum key in the object have non-empty values
-   * <p>
-   * Definition from: https://firebase.googleblog.com/2014/04/best-practices-arrays-in-firebase.html
    *
    * @param snapshot
    * @return
    */
   private static boolean isArray(DataSnapshot snapshot) {
     long expectedKey = -1;
-    long maxAllowedKey = (snapshot.getChildrenCount() * 2) - 1;
     for (DataSnapshot child : snapshot.getChildren()) {
       try {
         long key = Long.parseLong(child.getKey());
-        if (key > expectedKey && key <= maxAllowedKey) {
+        if (key > expectedKey) {
           expectedKey = key;
         } else {
           return false;
@@ -249,22 +233,16 @@ public class Utils {
   }
 
   /**
-   * Data should be treated as an array if:
-   * 1) All the keys are integers
-   * 2) More than half the keys between 0 and the maximum key in the object have non-empty values
-   * <p>
-   * Definition from: https://firebase.googleblog.com/2014/04/best-practices-arrays-in-firebase.html
    *
    * @param mutableData
    * @return
    */
   private static boolean isArray(MutableData mutableData) {
     long expectedKey = -1;
-    long maxAllowedKey = (mutableData.getChildrenCount() * 2) - 1;
     for (MutableData child : mutableData.getChildren()) {
       try {
         long key = Long.parseLong(child.getKey());
-        if (key > expectedKey && key <= maxAllowedKey) {
+        if (key > expectedKey) {
           expectedKey++;
         } else {
           return false;
@@ -277,6 +255,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param snapshot
    * @param <Any>
    * @return
@@ -323,6 +302,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param mutableData
    * @param <Any>
    * @return
@@ -369,6 +349,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param snapshot
    * @param <Any>
    * @return
@@ -406,6 +387,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param mutableData
    * @param <Any>
    * @return
@@ -443,6 +425,7 @@ public class Utils {
   }
 
   /**
+   *
    * @param snapshot
    * @return
    */
@@ -523,27 +506,5 @@ public class Utils {
       }
     }
     return deconstructedList;
-  }
-
-  public static boolean isAppInForeground(Context context) {
-    /**
-     We need to check if app is in foreground otherwise the app will crash.
-     http://stackoverflow.com/questions/8489993/check-android-application-is-in-foreground-or-not
-     **/
-    ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-    List<ActivityManager.RunningAppProcessInfo> appProcesses =
-      activityManager.getRunningAppProcesses();
-    if (appProcesses == null) {
-      return false;
-    }
-    final String packageName = context.getPackageName();
-    for (ActivityManager.RunningAppProcessInfo appProcess : appProcesses) {
-      if (appProcess.importance ==
-        ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND &&
-        appProcess.processName.equals(packageName)) {
-        return true;
-      }
-    }
-    return false;
   }
 }

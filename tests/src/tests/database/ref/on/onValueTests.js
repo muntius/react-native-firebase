@@ -1,11 +1,25 @@
+import { Platform } from 'react-native';
+
 import sinon from 'sinon';
 import 'should-sinon';
 import Promise from 'bluebird';
 
 import DatabaseContents from '../../../support/DatabaseContents';
 
+/**
+ * On Android, some data types result in callbacks that get called twice every time
+ * they are updated. This appears to be behaviour coming from the Android Firebase
+ * library itself.
+ *
+ * See https://github.com/invertase/react-native-firebase/issues/92 for details
+ */
+const DATATYPES_WITH_DUPLICATE_CALLBACK_CALLS = [
+  'array',
+  'number',
+];
+
 function onTests({ describe, context, it, firebase, tryCatch }) {
-  describe("ref().on('value')", () => {
+  describe('ref().on(\'value\')', () => {
     // Documented Web API Behaviour
     it('returns the success callback', () => {
       // Setup
@@ -31,8 +45,8 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
       // Test
 
-      await new Promise(resolve => {
-        ref.on('value', snapshot => {
+      await new Promise((resolve) => {
+        ref.on('value', (snapshot) => {
           callback(snapshot.val());
           resolve();
         });
@@ -44,12 +58,6 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
       await ref.set(1);
 
-      // wait for the set to register internally, they're events
-      // so not immediately available on the next event loop - only need to this do for tests
-      await new Promise(resolve => {
-        setTimeout(() => resolve(), 15);
-      });
-
       callback.should.be.calledWith(1);
 
       // Teardown
@@ -58,8 +66,8 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
     });
 
     // Documented Web API Behaviour
-    it('calls callback with the initial data and then when value changes', () =>
-      Promise.each(Object.keys(DatabaseContents.DEFAULT), async dataRef => {
+    it('calls callback with the initial data and then when value changes', () => {
+      return Promise.each(Object.keys(DatabaseContents.DEFAULT), async (dataRef) => {
         // Setup
 
         const ref = firebase.native.database().ref(`tests/types/${dataRef}`);
@@ -69,8 +77,8 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
         // Test
 
-        await new Promise(resolve => {
-          ref.on('value', snapshot => {
+        await new Promise((resolve) => {
+          ref.on('value', (snapshot) => {
             callback(snapshot.val());
             resolve();
           });
@@ -81,30 +89,33 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
         const newDataValue = DatabaseContents.NEW[dataRef];
         await ref.set(newDataValue);
 
-        await new Promise(resolve => {
-          setTimeout(() => resolve(), 5);
-        });
-
         // Assertions
 
         callback.should.be.calledWith(newDataValue);
-        callback.should.be.calledTwice();
+
+        if (Platform.OS === 'android' && DATATYPES_WITH_DUPLICATE_CALLBACK_CALLS.includes(dataRef)) {
+          callback.should.be.calledThrice();
+        } else {
+          callback.should.be.calledTwice();
+        }
 
         // Tear down
 
         ref.off();
-        return ref.set(currentDataValue);
-      }));
+        await ref.set(currentDataValue);
+      });
+    });
 
     it('calls callback when children of the ref change', async () => {
       const ref = firebase.native.database().ref('tests/types/object');
       const currentDataValue = DatabaseContents.DEFAULT.object;
 
       const callback = sinon.spy();
+
       // Test
 
-      await new Promise(resolve => {
-        ref.on('value', snapshot => {
+      await new Promise((resolve) => {
+        ref.on('value', (snapshot) => {
           callback(snapshot.val());
           resolve();
         });
@@ -113,14 +124,9 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
       callback.should.be.calledWith(currentDataValue);
 
       const newDataValue = DatabaseContents.NEW.string;
-      const childRef = firebase.native
-        .database()
-        .ref('tests/types/object/foo2');
+      const childRef = firebase.native.database().ref('tests/types/object/foo2');
       await childRef.set(newDataValue);
 
-      await new Promise(resolve => {
-        setTimeout(() => resolve(), 5);
-      });
       // Assertions
 
       callback.should.be.calledWith({
@@ -133,61 +139,52 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
       // Tear down
 
       ref.off();
-      return ref.set(currentDataValue);
+      await ref.set(currentDataValue);
     });
 
-    it('calls callback when child of the ref is added', async () =>
-      new Promise((resolve, reject) => {
-        const ref = firebase.native.database().ref('tests/types/array');
-        const currentDataValue = DatabaseContents.DEFAULT.array;
+    it('calls callback when child of the ref is added', async () => {
+      const ref = firebase.native.database().ref('tests/types/array');
+      const currentDataValue = DatabaseContents.DEFAULT.array;
 
-        const callback = sinon.spy();
-        const callbackAfterSet = sinon.spy();
+      const callback = sinon.spy();
 
-        let newKey = '';
-        let calledOnce = false;
-        let calledTwice = false;
-        ref.on(
-          'value',
-          tryCatch(snapshot => {
-            if (!calledOnce) {
-              callback(snapshot.val());
-              callback.should.be.calledWith(currentDataValue);
-              calledOnce = true;
+      // Test
 
-              const newElementRef = ref.push();
-              newKey = newElementRef.key;
-              newElementRef.set(37);
-            } else if (!calledTwice) {
-              calledTwice = true;
-              callbackAfterSet(snapshot.val());
-              const arrayAsObject = currentDataValue.reduce(
-                (memo, element, index) => {
-                  // eslint-disable-next-line no-param-reassign
-                  memo[index] = element;
-                  return memo;
-                },
-                {}
-              );
+      await new Promise((resolve) => {
+        ref.on('value', (snapshot) => {
+          callback(snapshot.val());
+          resolve();
+        });
+      });
 
-              // Assertions
-              callbackAfterSet.should.be.calledWith({
-                ...arrayAsObject,
-                [newKey]: 37,
-              });
+      callback.should.be.calledWith(currentDataValue);
 
-              // Tear down
-              ref.off(); // TODO
-              ref
-                .set(currentDataValue)
-                .then(() => resolve())
-                .catch(() => reject());
-            } // todo throw new Error('On listener called more than two times, expects no more than 2 calls');
-          }, reject)
-        );
-      }));
+      const newElementRef = await ref.push(37);
 
-    it("doesn't call callback when the ref is updated with the same value", async () => {
+      const arrayAsObject = currentDataValue.reduce((memo, element, index) => {
+        memo[index] = element;
+        return memo;
+      }, {});
+
+      // Assertions
+      callback.should.be.calledWith({
+        ...arrayAsObject,
+        [newElementRef.key]: 37,
+      });
+
+      if (Platform.OS === 'android') {
+        callback.should.be.calledThrice();
+      } else {
+        callback.should.be.calledTwice();
+      }
+
+      // Tear down
+
+      ref.off();
+      await ref.set(currentDataValue);
+    });
+
+    it('doesn\'t call callback when the ref is updated with the same value', async () => {
       const ref = firebase.native.database().ref('tests/types/object');
       const currentDataValue = DatabaseContents.DEFAULT.object;
 
@@ -195,8 +192,8 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
       // Test
 
-      await new Promise(resolve => {
-        ref.on('value', snapshot => {
+      await new Promise((resolve) => {
+        ref.on('value', (snapshot) => {
           callback(snapshot.val());
           resolve();
         });
@@ -206,9 +203,6 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
       await ref.set(currentDataValue);
 
-      await new Promise(resolve => {
-        setTimeout(() => resolve(), 5);
-      });
       // Assertions
 
       callback.should.be.calledOnce(); // Callback is not called again
@@ -219,8 +213,8 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
     });
 
     // Documented Web API Behaviour
-    it('allows binding multiple callbacks to the same ref', () =>
-      Promise.each(Object.keys(DatabaseContents.DEFAULT), async dataRef => {
+    it('allows binding multiple callbacks to the same ref', () => {
+      return Promise.each(Object.keys(DatabaseContents.DEFAULT), async (dataRef) => {
         // Setup
 
         const ref = firebase.native.database().ref(`tests/types/${dataRef}`);
@@ -231,15 +225,15 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
 
         // Test
 
-        await new Promise(resolve => {
-          ref.on('value', snapshot => {
+        await new Promise((resolve) => {
+          ref.on('value', (snapshot) => {
             callbackA(snapshot.val());
             resolve();
           });
         });
 
-        await new Promise(resolve => {
-          ref.on('value', snapshot => {
+        await new Promise((resolve) => {
+          ref.on('value', (snapshot) => {
             callbackB(snapshot.val());
             resolve();
           });
@@ -254,21 +248,22 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
         const newDataValue = DatabaseContents.NEW[dataRef];
         await ref.set(newDataValue);
 
-        await new Promise(resolve => {
-          setTimeout(() => resolve(), 5);
-        });
-
         callbackA.should.be.calledWith(newDataValue);
         callbackB.should.be.calledWith(newDataValue);
 
-        callbackA.should.be.calledTwice();
-        callbackB.should.be.calledTwice();
+        if (Platform.OS === 'android' && DATATYPES_WITH_DUPLICATE_CALLBACK_CALLS.includes(dataRef)) {
+          callbackA.should.be.calledThrice();
+          callbackB.should.be.calledThrice();
+        } else {
+          callbackA.should.be.calledTwice();
+          callbackB.should.be.calledTwice();
+        }
 
         // Tear down
 
         ref.off();
-        return Promise.resolve();
-      }));
+      });
+    });
 
     context('when no failure callback is provided', () => {
       it('then does not call the callback for a ref to un-permitted location', () => {
@@ -282,7 +277,7 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
          * As we are testing that a callback is "never" called, we just wait for
          * a reasonable time before giving up.
          */
-        return new Promise(resolve => {
+        return new Promise((resolve) => {
           setTimeout(() => {
             callback.should.not.be.called();
             invalidRef.off();
@@ -292,52 +287,50 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
       });
 
       // Documented Web API Behaviour
-      it('then calls callback bound to the specified context with the initial data and then when value changes', () =>
-        Promise.each(Object.keys(DatabaseContents.DEFAULT), async dataRef => {
+      it('then calls callback bound to the specified context with the initial data and then when value changes', () => {
+        return Promise.each(Object.keys(DatabaseContents.DEFAULT), async (dataRef) => {
           // Setup
 
           const ref = firebase.native.database().ref(`tests/types/${dataRef}`);
           const currentDataValue = DatabaseContents.DEFAULT[dataRef];
 
-          const cbContext = {
+          const context = {
             callCount: 0,
           };
 
           // Test
 
-          await new Promise(resolve => {
-            ref.on(
-              'value',
-              // eslint-disable-next-line func-names
-              function(snapshot) {
-                this.value = snapshot.val();
-                this.callCount += 1;
-                resolve();
-              },
-              cbContext
-            );
+          await new Promise((resolve) => {
+            ref.on('value', function(snapshot) {
+              this.value = snapshot.val();
+              this.callCount += 1;
+              resolve();
+            }, context);
           });
 
-          cbContext.value.should.eql(currentDataValue);
-          cbContext.callCount.should.eql(1);
+          context.value.should.eql(currentDataValue);
+          context.callCount.should.eql(1);
 
           const newDataValue = DatabaseContents.NEW[dataRef];
           await ref.set(newDataValue);
 
-          await new Promise(resolve => {
-            setTimeout(() => resolve(), 5);
-          });
-
           // Assertions
 
-          cbContext.value.should.eql(newDataValue);
-          cbContext.callCount.should.eql(2);
+          context.value.should.eql(newDataValue);
+
+          if (Platform.OS === 'android' && DATATYPES_WITH_DUPLICATE_CALLBACK_CALLS.includes(dataRef)) {
+            context.callCount.should.eql(3);
+          } else {
+            context.callCount.should.eql(2);
+          }
 
           // Tear down
 
           ref.off();
-          return ref.set(currentDataValue);
-        }));
+          await ref.set(currentDataValue);
+        });
+      });
+
     });
 
     // Observed Web API Behaviour
@@ -348,27 +341,67 @@ function onTests({ describe, context, it, firebase, tryCatch }) {
         const callback = sinon.spy();
 
         return new Promise((resolve, reject) => {
-          invalidRef.on(
-            'value',
-            callback,
-            tryCatch(error => {
-              error.message.should.eql(
-                "Database: Client doesn't have permission to access the desired data. (database/permission-denied)."
-              );
+          invalidRef.on('value', callback, tryCatch((error) => {
+            error.message.should.eql(
+              'permission_denied at /nope: Client doesn\'t have permission to access the desired data.'
+            );
+            error.name.should.eql('Error');
 
-              error.code.should.eql('database/permission-denied');
+            callback.should.not.be.called();
 
-              // test ref matches
-              error.ref.path.should.eql(invalidRef.path);
-
-              callback.should.not.be.called();
-
-              invalidRef.off();
-              resolve();
-            }, reject)
-          );
+            invalidRef.off();
+            resolve();
+          }, reject));
         });
       });
+
+      // Documented Web API Behaviour
+      it('then calls callback bound to the specified context with the initial data and then when value changes', () => {
+        return Promise.each(Object.keys(DatabaseContents.DEFAULT), async (dataRef) => {
+          // Setup
+
+          const ref = firebase.native.database().ref(`tests/types/${dataRef}`);
+          const currentDataValue = DatabaseContents.DEFAULT[dataRef];
+
+          const context = {
+            callCount: 0,
+          };
+
+          const failureCallback = sinon.spy();
+
+          // Test
+
+          await new Promise((resolve) => {
+            ref.on('value', function(snapshot) {
+              this.value = snapshot.val();
+              this.callCount += 1;
+              resolve();
+            }, failureCallback, context);
+          });
+
+          failureCallback.should.not.be.called();
+          context.value.should.eql(currentDataValue);
+          context.callCount.should.eql(1);
+
+          const newDataValue = DatabaseContents.NEW[dataRef];
+          await ref.set(newDataValue);
+
+          // Assertions
+
+          context.value.should.eql(newDataValue);
+
+          if (Platform.OS === 'android' && DATATYPES_WITH_DUPLICATE_CALLBACK_CALLS.includes(dataRef)) {
+            context.callCount.should.eql(3);
+          } else {
+            context.callCount.should.eql(2);
+          }
+
+          // Tear down
+
+          ref.off();
+          await ref.set(currentDataValue);
+        });
+      })
     });
   });
 }

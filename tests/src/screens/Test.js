@@ -1,6 +1,4 @@
-import React from 'react';
-import PropTypes from 'prop-types';
-
+import React, { PropTypes } from 'react';
 import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import { connect } from 'react-redux';
 import { js_beautify as beautify } from 'js-beautify';
@@ -10,27 +8,38 @@ import RunStatus from '../../lib/RunStatus';
 import TestControlButton from '../components/TestControlButton';
 
 class Test extends React.Component {
-  static navigationOptions = ({
-    navigation: { state: { params: { title, testId } } },
-  }) => ({
-    title,
-    headerTintColor: '#ffffff',
-    headerStyle: { backgroundColor: '#1976D2' },
-    headerRight: (
-      <View style={{ marginRight: 8 }}>
+
+  static navigationOptions = ({ navigation: { state: { params: { title, testId } } } }) => {
+    return {
+      title,
+      headerTintColor: '#ffffff',
+      headerStyle: { backgroundColor: '#0288d1' },
+      headerRight: <View style={{ marginRight: 8 }}>
         <TestControlButton testId={testId} />
-      </View>
-    ),
-  });
+      </View>,
+    };
+  };
 
   static renderBanner({ status, time }) {
     switch (status) {
       case RunStatus.RUNNING:
-        return <Banner type="warning">Test is currently running.</Banner>;
+        return (
+          <Banner type={'warning'}>
+            Test is currently running.
+          </Banner>
+        );
       case RunStatus.OK:
-        return <Banner type="success">Test passed. ({time}ms)</Banner>;
+        return (
+          <Banner type={'success'}>
+            Test passed. ({time}ms)
+          </Banner>
+        );
       case RunStatus.ERR:
-        return <Banner type="error">Test failed. ({time}ms)</Banner>;
+        return (
+          <Banner type={'error'}>
+            Test failed. ({time}ms)
+          </Banner>
+        );
       default:
         return null;
     }
@@ -43,41 +52,31 @@ class Test extends React.Component {
   }
 
   render() {
-    const {
-      test: { stackTrace, message, description, func, status, time },
-      testContextName,
-    } = this.props;
+    const { test: { stackTrace, description, func, status, time }, testContextName } = this.props;
 
     return (
       <View style={styles.container}>
         {Test.renderBanner({ status, time })}
-        <ScrollView>
-          <View style={styles.sectionContainer}>
+        <View >
+          <ScrollView style={styles.sectionContainer}>
             <Text style={styles.heading}>{testContextName}</Text>
             <Text style={styles.description}>{description}</Text>
-          </View>
-          {message ? (
-            <View style={styles.sectionContainer}>
-              <Text style={styles.headingWarn}>Test Error Message</Text>
-              <Text style={styles.message}>{message || 'None.'}</Text>
-            </View>
-          ) : null}
-          {stackTrace ? (
-            <View style={styles.sectionContainer}>
-              <Text style={styles.headingWarn}>Test Error Stack</Text>
-              <Text style={styles.description}>{stackTrace || 'None.'}</Text>
-            </View>
-          ) : null}
-          <View style={styles.sectionContainer}>
-            <Text style={styles.heading}>Test Code Preview</Text>
+          </ScrollView>
+          <ScrollView style={styles.sectionContainer}>
+            <Text style={styles.heading}>Test Error</Text>
             <Text style={styles.description}>
-              {beautify(removeLastLine(removeFirstLine(func.toString())), {
-                indent_size: 4,
-                break_chained_methods: true,
-              })}
+              <Text>{stackTrace || 'None.'}</Text>
             </Text>
-          </View>
-        </ScrollView>
+          </ScrollView>
+          <Text style={styles.heading}>
+            Test Code Preview
+          </Text>
+          <ScrollView style={styles.sectionContainer}>
+            <Text style={styles.description}>
+              {beautify(removeLastLine(removeFirstLine(func.toString())), { indent_size: 4, break_chained_methods: true })}
+            </Text>
+          </ScrollView>
+        </View>
       </View>
     );
   }
@@ -88,12 +87,10 @@ Test.propTypes = {
     status: PropTypes.string,
     time: PropTypes.number,
     func: PropTypes.function,
-    stackTrace: PropTypes.string,
-    message: PropTypes.string,
+    stackTrace: PropTypes.function,
     description: PropTypes.string,
   }).isRequired,
 
-  // eslint-disable-next-line react/require-default-props
   testContextName: PropTypes.string,
 
   navigation: PropTypes.shape({
@@ -104,63 +101,29 @@ Test.propTypes = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
   },
   sectionContainer: {
     minHeight: 100,
-    backgroundColor: '#fff',
   },
   heading: {
     padding: 5,
-    elevation: 3,
-    backgroundColor: '#2196F3',
-    fontWeight: '400',
+    backgroundColor: '#0288d1',
+    fontWeight: '600',
     color: '#ffffff',
-    fontSize: 14,
-  },
-  headingWarn: {
-    padding: 5,
-    elevation: 3,
-    backgroundColor: '#FFC107',
-    fontWeight: '400',
-    color: '#212121',
-    fontSize: 14,
+    fontSize: 16,
   },
   description: {
     padding: 5,
-    fontSize: 12,
-  },
-  message: {
-    padding: 5,
-    fontSize: 12,
-    width: '100%',
-    minHeight: 100,
+    fontSize: 14,
   },
 });
 
-/*
- .dark-primary-color    { background: #1976D2; }
- .default-primary-color { background: #2196F3; }
- .light-primary-color   { background: #BBDEFB; }
- .text-primary-color    { color: #FFFFFF; }
- .accent-color          { background: #FFC107; }
- .primary-text-color    { color: #212121; }
- .secondary-text-color  { color: #757575; }
- .divider-color         { border-color: #BDBDBD; }
-
- */
-
-function select(
-  { tests, testContexts },
-  { navigation: { state: { params: { testId } } } }
-) {
+function select({ tests, testContexts }, { navigation: { state: { params: { testId } } } }) {
   const test = tests[testId];
   let testContext = testContexts[test.testContextId];
 
-  while (
-    testContext.parentContextId &&
-    testContexts[testContext.parentContextId].parentContextId
-  ) {
+  while(testContext.parentContextId && testContexts[testContext.parentContextId].parentContextId) {
     testContext = testContexts[testContext.parentContextId];
   }
   return {

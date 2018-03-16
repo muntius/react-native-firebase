@@ -1,7 +1,6 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import React, { PropTypes, Component } from 'react';
 import { connect } from 'react-redux';
-// import Toast from 'react-native-simple-toast';
+import Toast from 'react-native-simple-toast';
 
 import RunStatus from '../../lib/RunStatus';
 import { runTest } from '../tests/index';
@@ -21,10 +20,10 @@ class TestControlButton extends Component {
   }
 
   handleOnPress() {
-    const { test: { id } } = this.props;
+    const { test: { id, description } } = this.props;
 
     runTest(id);
-    // Toast.show(`Running ${description}.`);
+    Toast.show(`Running ${description}.`);
   }
 
   render() {
@@ -33,7 +32,7 @@ class TestControlButton extends Component {
     if (status !== RunStatus.STARTED && !this.testIsPending()) {
       return (
         <Icon
-          color="#ffffff"
+          color={'#ffffff'}
           size={28}
           name="play circle filled"
           onPress={this.handleOnPress}
@@ -43,6 +42,7 @@ class TestControlButton extends Component {
 
     return null;
   }
+
 }
 
 TestControlButton.propTypes = {
@@ -55,7 +55,9 @@ TestControlButton.propTypes = {
   pendingTestIds: PropTypes.objectOf(PropTypes.bool).isRequired,
 };
 
-TestControlButton.defaultProps = {};
+TestControlButton.defaultProps = {
+
+};
 
 function mapStateToProps({ tests, pendingTestIds }, { testId }) {
   const test = tests[testId];

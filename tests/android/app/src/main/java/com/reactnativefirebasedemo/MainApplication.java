@@ -4,20 +4,6 @@ import android.app.Application;
 
 import com.facebook.react.ReactApplication;
 import io.invertase.firebase.RNFirebasePackage;
-import io.invertase.firebase.admob.RNFirebaseAdMobPackage;
-import io.invertase.firebase.analytics.RNFirebaseAnalyticsPackage;
-import io.invertase.firebase.auth.RNFirebaseAuthPackage;
-import io.invertase.firebase.config.RNFirebaseRemoteConfigPackage;
-import io.invertase.firebase.crash.RNFirebaseCrashPackage;
-import io.invertase.firebase.database.RNFirebaseDatabasePackage;
-import io.invertase.firebase.fabric.crashlytics.RNFirebaseCrashlyticsPackage;
-import io.invertase.firebase.firestore.RNFirebaseFirestorePackage;
-import io.invertase.firebase.instanceid.RNFirebaseInstanceIdPackage;
-import io.invertase.firebase.links.RNFirebaseLinksPackage;
-import io.invertase.firebase.messaging.RNFirebaseMessagingPackage;
-import io.invertase.firebase.notifications.RNFirebaseNotificationsPackage;
-import io.invertase.firebase.perf.RNFirebasePerformancePackage;
-import io.invertase.firebase.storage.RNFirebaseStoragePackage;
 import com.oblador.vectoricons.VectorIconsPackage;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
@@ -40,27 +26,8 @@ public class MainApplication extends Application implements ReactApplication {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
           new VectorIconsPackage(),
-          new RNFirebasePackage(),
-          new RNFirebaseAdMobPackage(),
-          new RNFirebaseAnalyticsPackage(),
-          new RNFirebaseAuthPackage(),
-          new RNFirebaseRemoteConfigPackage(),
-          new RNFirebaseCrashPackage(),
-          new RNFirebaseCrashlyticsPackage(),
-          new RNFirebaseDatabasePackage(),
-          new RNFirebaseFirestorePackage(),
-          new RNFirebaseInstanceIdPackage(),
-          new RNFirebaseLinksPackage(),
-          new RNFirebaseMessagingPackage(),
-          new RNFirebaseNotificationsPackage(),
-          new RNFirebasePerformancePackage(),
-          new RNFirebaseStoragePackage()
+          new RNFirebasePackage()
       );
-    }
-
-    @Override
-    protected String getJSMainModuleName() {
-      return "index";
     }
   };
 

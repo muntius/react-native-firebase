@@ -1,9 +1,8 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import React, { PropTypes, Component } from 'react';
 import some from 'lodash.some';
 import { connect } from 'react-redux';
 
-// import Toast from 'react-native-simple-toast';
+import Toast from 'react-native-simple-toast';
 
 import { runTests } from '../tests/index';
 import RunStatus from '../../lib/RunStatus';
@@ -20,26 +19,29 @@ class OverviewControlButton extends Component {
   testSuitesAreRunning() {
     const { testSuites } = this.props;
 
-    return some(
-      Object.values(testSuites),
-      ({ status }) => status === RunStatus.RUNNING
-    );
+    return some(Object.values(testSuites), ({ status }) => status === RunStatus.RUNNING);
   }
 
   handleOnPress() {
     const { focusedTestIds, pendingTestIds, tests } = this.props;
     runTests(tests, { focusedTestIds, pendingTestIds });
-    // Toast.show('Running all suite tests.');
+    Toast.show('Running all suite tests.');
   }
 
   render() {
     if (this.testSuitesAreRunning()) {
-      return <Icon color="#ffffff" size={28} name="autorenew" />;
+      return (
+        <Icon
+          color={'#ffffff'}
+          size={28}
+          name="autorenew"
+        />
+      );
     }
 
     return (
       <Icon
-        color="#ffffff"
+        color={'#ffffff'}
         size={28}
         name="play circle filled"
         onPress={this.handleOnPress}
@@ -55,12 +57,8 @@ OverviewControlButton.propTypes = {
   pendingTestIds: PropTypes.objectOf(PropTypes.bool).isRequired,
 };
 
-function mapStateToProps({
-  tests,
-  testSuites,
-  focusedTestIds,
-  pendingTestIds,
-}) {
+
+function mapStateToProps({ tests, testSuites, focusedTestIds, pendingTestIds }) {
   return {
     tests,
     testSuites,
